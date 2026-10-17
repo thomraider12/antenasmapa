@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de antenas NTM/JSON</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--bg:#f5f6f7;--panel:#fff;--tx:#1b1f23;--mut:#66707a;--line:#d8dde2;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--bg:#14171a;--panel:#1d2125;--tx:#e8ebee;--mut:#98a2ab;--line:#33393f;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx)}
+#app{display:grid;grid-template-columns:300px 1fr;height:100%}
+aside{background:var(--panel);border-right:1px solid var(--line);padding:16px;overflow:auto}
+h1{font-size:18px;margin:0 0 12px}
+h2{font-size:13px;margin:18px 0 6px;color:var(--mut);font-weight:600}
+#map{height:100%;min-height:300px}
+#drop{border:2px dashed var(--line);border-radius:8px;padding:14px;text-align:center;cursor:pointer;color:var(--mut)}
+#drop.over{border-color:#2e26ff;color:var(--tx)}
+label.chk{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer}
+.sw{width:14px;height:14px;border-radius:50%;border:1px solid var(--line);flex:none}
+#stats{color:var(--mut);font-size:13px}
+#status{color:var(--mut);font-size:12px;margin-top:6px}
+#clear{margin-top:8px;padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--tx);cursor:pointer}
+#note{display:none;background:#fff3cd;color:#5c4400;padding:6px 8px;border-radius:6px;font-size:12px;margin-top:10px}
+.leaflet-popup-content{margin:12px 14px;min-width:260px;max-width:420px;max-height:60vh;overflow:auto;font:13px/1.4 system-ui,sans-serif;color:#1b1f23}
+.pop h3{margin:0 0 2px;font-size:14px}
+.pop .ad{color:#66707a;margin-bottom:6px}
+.op{margin-top:10px;border-left:5px solid;padding-left:8px}
+.op b{font-size:13px}
+.tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:9px;background:#1b1f23;color:#fff;margin-left:4px}
+.tag.g5{background:#0a7d3b}
+table.c{border-collapse:collapse;width:100%;margin-top:4px;font-size:12px}
+table.c th,table.c td{text-align:left;padding:2px 6px 2px 0;white-space:nowrap}
+table.c th{color:#66707a;font-weight:600}
+.ant{border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
+.ant i{font-style:normal;font-size:10px;font-weight:700;background:#fff;color:#111;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
+@media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto 1fr}aside{border-right:0;border-bottom:1px solid var(--line);max-height:42vh}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside>
+  <h1>Mapa de antenas</h1>
+  <div id="drop">Largar ficheiros NTM ou JSON aqui<br>ou clicar para escolher vários</div>
+  <input type="file" id="file" accept=".ntm,.txt,.csv,.json,text/plain,application/json" multiple hidden>
+  <div id="stats" style="margin-top:10px">Nenhum ficheiro carregado.</div>
+  <div id="status" role="status" aria-live="polite"></div>
+  <button id="clear" type="button">Limpar dados guardados</button>
+  <div id="note"></div>
+  <h2>Operadoras</h2><div id="fops">–</div>
+  <h2>Tecnologia</h2>
+  <label class="chk"><input type="checkbox" id="t4" checked> 4G</label>
+  <label class="chk"><input type="checkbox" id="t5" checked> 5G</label>
+  <h2>Legenda</h2>
+  <div style="color:var(--mut);font-size:13px">Uma cor: antena de uma só operadora.<br>Várias cores: antena partilhada.<br>O centro indica a tecnologia máxima (4G ou 5G).</div>
+</aside>
+<div id="map"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const OPS = {
+  '268-01': ['Vodafone', '#e60000'],
+  '268-02': ['DIGI', '#0099fe'],
+  '268-03': ['NOS', '#000000'],
+  '268-06': ['MEO', '#2e26ff']
+};
+const opName = k => (OPS[k] || ['MCC-MNC ' + k])[0];
+const opColor = k => (OPS[k] || [0, '#888888'])[1];
+
+// LTE: [banda, F_DL_low (MHz), N_offs_DL, N_max]
+const LTE = [[1,2110,0,599],[2,1930,600,1199],[3,1805,1200,1949],[4,2110,1950,2399],[5,869,2400,2649],
+  [7,2620,2750,3449],[8,925,3450,3799],[12,729,5010,5179],[20,791,6150,6449],[26,859,8690,9039],
+  [28,758,9210,9659],[32,1452,9920,10359],[38,2570,37750,38249],[40,2300,38650,39649],[41,2496,39650,41589]];
+function lteInfo(n) {
+  if (isNaN(n)) return {band: '?', mhz: null};
+  for (const [b, f, o, m] of LTE) if (n >= o && n <= m) return {band: 'B' + b, mhz: f + 0.1 * (n - o)};
+  return {band: '?', mhz: null};
+}
+// NR: banda a partir da frequência DL
+const NR = [['n28',758,791],['n20',791,821],['n8',925,960],['n3',1805,1880],['n1',2110,2170],['n40',2300,2400],
+  ['n41',2496,2620],['n7',2620,2690],['n78',3300,3800],['n258',24250,27500]];
+function nrInfo(n) {
+  if (isNaN(n)) return {band: '?', mhz: null};
+  const f = n < 600000 ? 0.005 * n : 3000 + 0.015 * (n - 600000);
+  const hit = NR.find(([, a, b]) => f >= a && f <= b);
+  return {band: hit ? hit[0] : '?', mhz: f};
+}
+
+const STORAGE_KEY = 'mapa-antenas-cells-v1';
+let cells = [], sites = [], opsSeen = new Set(), enabledOps = new Set();
+
+function parse(text) {
+  const out = []; let skipped = 0;
+  for (const raw of text.split(/\r?\n/)) {
+    const p = raw.trim().split(';');
+    if (p.length < 11) continue;
+    const tech = p[0].trim();
+    if (tech !== '4G' && tech !== '5G') continue; // ignora 2G e o resto
+    const lat = parseFloat(p[7].replace(',', '.')), lon = parseFloat(p[8].replace(',', '.'));
+    if (isNaN(lat) || isNaN(lon)) { skipped++; continue; }
+    const c = {tech, op: p[1].trim() + '-' + p[2].trim().padStart(2, '0'), id: p[3].trim(), tac: p[4].trim(),
+      pci: p[6].trim(), lat, lon, addr: p[9].trim(), arfcn: p[10].trim()};
+    const a = parseInt(c.arfcn, 10);
+    if (tech === '5G') {
+      c.node = Math.floor(Number(c.id) / 16384); // gNB
+      Object.assign(c, nrInfo(a));
+    } else {
+      c.node = p[5].trim(); // eNB
+      Object.assign(c, lteInfo(a));
+    }
+    out.push(c);
+  }
+  return {out, skipped};
+}
+
+function parseJson(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const data = JSON.parse(text);
+  if (!Array.isArray(data)) throw new Error('O JSON tem de conter uma lista de células.');
+  const out = []; let skipped = 0;
+  for (const item of data) {
+    if (!item || typeof item !== 'object') { skipped++; continue; }
+    const techName = String(item.technology || '').trim().toUpperCase();
+    const tech = techName === 'NR' ? '5G' : techName === 'LTE' ? '4G' : '';
+    if (!tech) continue;
+    const lat = Number(item.latitude), lon = Number(item.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      skipped++; continue;
+    }
+    const network = item.network || {};
+    if (network.mcc == null || network.mnc == null) { skipped++; continue; }
+    const id = String(item.cid ?? '').trim();
+    const pci = String(item.code ?? '').trim();
+    const frequency = Number(item.frequency);
+    const hasFrequency = item.frequency != null && Number.isFinite(frequency);
+    const c = {
+      tech, op: String(network.mcc).trim() + '-' + String(network.mnc).trim().padStart(2, '0'),
+      id, tac: String(item.area ?? '').trim(), pci, lat, lon,
+      addr: String(item.location || '').trim(), arfcn: hasFrequency ? String(item.frequency) : '',
+      node: tech === '5G' ? Math.floor(Number(id) / 16384) : Math.floor(Number(id) / 256)
+    };
+    if (hasFrequency && frequency > 0) {
+      if (tech === '5G' && frequency >= 100000) Object.assign(c, nrInfo(frequency));
+      else if (tech === '5G') Object.assign(c, nrFrequencyInfo(frequency));
+      else if (frequency < 10000) Object.assign(c, lteFrequencyInfo(frequency));
+      else Object.assign(c, lteInfo(frequency));
+    } else {
+      c.band = '?'; c.mhz = null;
+    }
+    out.push(c);
+  }
+  return {out, skipped};
+}
+
+function nrFrequencyInfo(frequency) {
+  const hit = NR.find(([, low, high]) => frequency >= low && frequency <= high);
+  return {band: hit ? hit[0] : '?', mhz: frequency};
+}
+
+function lteFrequencyInfo(frequency) {
+  const bands = [[1,2110,2170],[2,1930,1990],[3,1805,1880],[4,2110,2155],[5,869,894],
+    [7,2620,2690],[8,925,960],[12,729,746],[20,791,821],[26,859,894],
+    [28,758,803],[32,1452,1496],[38,2570,2620],[40,2300,2400],[41,2496,2690]];
+  const hit = bands.find(([, low, high]) => frequency >= low && frequency <= high);
+  return {band: hit ? 'B' + hit[0] : '?', mhz: frequency};
+}
+
+function parseFile(text, name) {
+  const isJson = /\.json$/i.test(name) || /^[\s]*[\[{]/.test(text);
+  return isJson ? parseJson(text) : parse(text);
+}
+
+function cellKey(c) {
+  return [c.tech, c.op, c.id, c.tac, c.pci, c.lat, c.lon, c.arfcn].join('|');
+}
+
+function saveCells() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cells));
+    return '';
+  } catch (error) {
+    return 'Não foi possível guardar os dados localmente: ' + error.message;
+  }
+}
+
+function updateCells(incoming, fit = true) {
+  const unique = new Map(cells.map(c => [cellKey(c), c]));
+  for (const c of incoming) unique.set(cellKey(c), c);
+  cells = [...unique.values()];
+  opsSeen = new Set(cells.map(c => c.op)); enabledOps = new Set(opsSeen);
+  buildOpFilters();
+  if (!cells.length) {
+    document.getElementById('stats').textContent = 'Não foram encontradas células 4G/5G com coordenadas.';
+    sites = []; layer.clearLayers();
+    return;
+  }
+  if (fit) map.fitBounds(L.latLngBounds(cells.map(c => [c.lat, c.lon])), {maxZoom: 15, padding: [30, 30]});
+  buildSites();
+  return saveCells();
+}
+
+function buildSites() {
+  const t4 = document.getElementById('t4').checked, t5 = document.getElementById('t5').checked;
+  const m = new Map();
+  for (const c of cells) {
+    if (!enabledOps.has(c.op)) continue;
+    if (c.tech === '4G' && !t4) continue;
+    if (c.tech === '5G' && !t5) continue;
+    const key = c.lat.toFixed(4) + ',' + c.lon.toFixed(4);
+    let s = m.get(key);
+    if (!s) m.set(key, s = {lat: c.lat, lon: c.lon, addr: c.addr, ops: new Map()});
+    if (!s.addr || s.addr === '-') s.addr = c.addr;
+    if (!s.ops.has(c.op)) s.ops.set(c.op, []);
+    s.ops.get(c.op).push(c);
+  }
+  sites = [...m.values()];
+  for (const s of sites) {
+    s.keys = [...s.ops.keys()].sort();
+    s.max5 = [...s.ops.values()].some(l => l.some(c => c.tech === '5G'));
+  }
+  render();
+}
+
+const map = L.map('map', {preferCanvas: true}).setView([39.6, -8], 7);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19,
+  attribution: '&copy; OpenStreetMap'}).addTo(map);
+const layer = L.layerGroup().addTo(map);
+const MAXSHOW = 1500;
+
+function icon(s) {
+  const cols = s.keys.map(opColor);
+  const bg = cols.length === 1 ? cols[0] :
+    'conic-gradient(' + cols.map((c, i) => `${c} ${i * 100 / cols.length}% ${(i + 1) * 100 / cols.length}%`).join(',') + ')';
+  const sz = cols.length > 1 ? 36 : 32;
+  return L.divIcon({className: '', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
+    html: `<div class="ant" style="width:${sz}px;height:${sz}px;background:${bg}"><i>${s.max5 ? '5G' : '4G'}</i></div>`});
+}
+const esc = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const fq = c => c.mhz ? c.mhz.toFixed(1) + ' MHz' : '–';
+
+function popup(s) {
+  let h = `<div class="pop"><h3>${s.keys.length > 1 ? 'Antena partilhada (' + s.keys.length + ' operadoras)' : 'Antena ' + esc(opName(s.keys[0]))}</h3>
+    <div class="ad">${esc(s.addr || '–')}<br>Máximo no local: <span class="tag ${s.max5 ? 'g5' : ''}">${s.max5 ? '5G' : '4G'}</span></div>`;
+  for (const k of s.keys) {
+    const l = s.ops.get(k);
+    const g5 = l.filter(c => c.tech === '5G'), g4 = l.filter(c => c.tech === '4G');
+    h += `<div class="op" style="border-color:${opColor(k)}"><b>${esc(opName(k))}</b><span class="tag ${g5.length ? 'g5' : ''}">máx ${g5.length ? '5G' : '4G'}</span>`;
+    if (g5.length) {
+      h += `<table class="c"><tr><th>5G</th><th>gNB</th><th>NCI</th><th>PCI</th><th>Canal / freq.</th><th>TAC</th></tr>`;
+      for (const c of g5.sort((a, b) => a.node - b.node || a.pci - b.pci))
+        h += `<tr><td>${esc(c.band)} · ${fq(c)}</td><td>${c.node}</td><td>${esc(c.id)}</td><td>${esc(c.pci)}</td><td>${esc(c.arfcn)}</td><td>${esc(c.tac)}</td></tr>`;
+      h += `</table>`;
+    }
+    if (g4.length) {
+      h += `<table class="c"><tr><th>4G</th><th>eNB</th><th>CI</th><th>PCI</th><th>Canal / freq.</th><th>TAC</th></tr>`;
+      for (const c of g4.sort((a, b) => a.node - b.node || a.pci - b.pci))
+        h += `<tr><td>${esc(c.band)} · ${fq(c)}</td><td>${esc(c.node)}</td><td>${esc(c.id)}</td><td>${esc(c.pci)}</td><td>${esc(c.arfcn)}</td><td>${esc(c.tac)}</td></tr>`;
+      h += `</table>`;
+    }
+    h += `</div>`;
+  }
+  return h + '</div>';
+}
+
+function render() {
+  layer.clearLayers();
+  const b = map.getBounds().pad(0.1);
+  const vis = sites.filter(s => b.contains([s.lat, s.lon]));
+  const shown = vis.slice(0, MAXSHOW);
+  for (const s of shown) {
+    const mk = L.marker([s.lat, s.lon], {icon: icon(s)});
+    mk.bindPopup(() => popup(s), {maxWidth: 420});
+    layer.addLayer(mk);
+  }
+  const note = document.getElementById('note');
+  note.style.display = vis.length > MAXSHOW ? 'block' : 'none';
+  note.textContent = `A mostrar ${MAXSHOW} de ${vis.length} locais nesta vista. Aproxime o zoom para ver todos.`;
+  const shared = sites.filter(s => s.keys.length > 1).length;
+  document.getElementById('stats').innerHTML = cells.length ?
+    `${sites.length} locais · ${shared} partilhados · ${sites.filter(s => s.max5).length} com 5G<br>${cells.length} células 4G/5G nos dados carregados` : 'Nenhum ficheiro carregado.';
+}
+map.on('moveend', render);
+
+function buildOpFilters() {
+  const box = document.getElementById('fops'); box.innerHTML = '';
+  [...opsSeen].sort().forEach(k => {
+    const l = document.createElement('label'); l.className = 'chk';
+    l.innerHTML = `<input type="checkbox" checked><span class="sw" style="background:${opColor(k)}"></span>${esc(opName(k))}`;
+    l.firstChild.onchange = e => { e.target.checked ? enabledOps.add(k) : enabledOps.delete(k); buildSites(); };
+    box.appendChild(l);
+  });
+}
+
+const drop = document.getElementById('drop'), fin = document.getElementById('file');
+async function readFiles(files) {
+  if (!files.length) return;
+  const results = await Promise.all([...files].map(async file => {
+    try {
+      const {out, skipped} = parseFile(await file.text(), file.name);
+      return {name: file.name, out, skipped};
+    } catch (error) {
+      return {name: file.name, error};
+    }
+  }));
+  const good = results.filter(r => !r.error);
+  const incoming = good.flatMap(r => r.out);
+  const saveError = incoming.length ? updateCells(incoming) : '';
+  const errors = results.filter(r => r.error).map(r => `${r.name}: ${r.error.message}`);
+  const skipped = good.reduce((sum, r) => sum + r.skipped, 0);
+  const messages = [];
+  if (incoming.length) messages.push(`${incoming.length} células lidas em ${good.length} ficheiro(s).`);
+  else if (good.length) messages.push('Nenhuma célula válida encontrada nos ficheiros.');
+  if (skipped) messages.push(`${skipped} registo(s) ignorado(s) por falta de dados válidos.`);
+  if (errors.length) messages.push('Erro(s): ' + errors.join(' | '));
+  if (saveError) messages.push(saveError);
+  else if (incoming.length) messages.push('Dados guardados localmente para a próxima visita.');
+  document.getElementById('status').textContent = messages.join(' ');
+}
+drop.onclick = () => fin.click();
+fin.onchange = () => { readFiles(fin.files); fin.value = ''; };
+['dragover', 'dragenter'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', ev => readFiles(ev.dataTransfer.files));
+document.getElementById('clear').onclick = () => {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    cells = []; sites = []; opsSeen.clear(); enabledOps.clear();
+    document.getElementById('fops').textContent = '–';
+    document.getElementById('stats').textContent = 'Nenhum ficheiro carregado.';
+    document.getElementById('status').textContent = 'Dados locais apagados.';
+    document.getElementById('note').style.display = 'none';
+    layer.clearLayers();
+  } catch (error) {
+    document.getElementById('status').textContent = 'Não foi possível apagar os dados locais: ' + error.message;
+  }
+};
+document.getElementById('t4').onchange = buildSites;
+document.getElementById('t5').onchange = buildSites;
+
+try {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const restored = JSON.parse(saved);
+    if (!Array.isArray(restored)) throw new Error('Formato local inválido.');
+    updateCells(restored, true);
+    document.getElementById('status').textContent = 'Dados locais restaurados.';
+  }
+} catch (error) {
+  document.getElementById('status').textContent = 'Não foi possível restaurar os dados locais: ' + error.message;
+}
+</script>
+</body>
+</html>
