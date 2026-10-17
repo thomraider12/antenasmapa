@@ -66,6 +66,7 @@ const OPS = {
   '268-03': ['NOS', '#000000'],
   '268-06': ['MEO', '#2e26ff']
 };
+const SITE_OPS = {'vodafone': '268-01', 'digi': '268-02', 'nos': '268-03', 'meo': '268-06'};
 const opName = k => (OPS[k] || ['MCC-MNC ' + k])[0];
 const opColor = k => (OPS[k] || [0, '#888888'])[1];
 
@@ -122,6 +123,50 @@ function parseJson(text) {
   const out = []; let skipped = 0;
   for (const item of data) {
     if (!item || typeof item !== 'object') { skipped++; continue; }
+    if (Array.isArray(item.ops) && item.technologies && typeof item.technologies === 'object') {
+      const lat = Number(item.lat), lon = Number(item.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+        skipped++; continue;
+      }
+      const addr = [item.freguesia, item.concelho, item.distrito]
+        .filter(value => typeof value === 'string' && value.trim()).join(', ');
+      const includedOps = new Set(item.ops
+        .map(operator => SITE_OPS[String(operator).trim().toLowerCase()])
+        .filter(Boolean));
+      for (const techName of ['4G', '5G']) {
+        const techData = item.technologies[techName];
+        if (!techData || typeof techData !== 'object') continue;
+        for (const [operator, operatorData] of Object.entries(techData)) {
+          const op = SITE_OPS[operator.trim().toLowerCase()];
+          if (!op || !includedOps.has(op) || !operatorData?.bands || typeof operatorData.bands !== 'object') continue;
+          for (const [bandName, bandData] of Object.entries(operatorData.bands)) {
+            if (!Array.isArray(bandData?.cells)) continue;
+            const bandMatch = bandName.match(/\b(?:n|b)\d+\b/i);
+            const band = bandMatch ? (techName === '5G' ? bandMatch[0].toLowerCase() : bandMatch[0].toUpperCase()) : '?';
+            for (const cell of bandData.cells) {
+              if (!cell || typeof cell !== 'object') { skipped++; continue; }
+              const id = String(cell.ci ?? '').trim();
+              const node = String(cell[techName === '5G' ? 'gnb' : 'enb'] ?? '').trim();
+              const arfcnValue = cell.arfcn ?? cell.earfcn ?? cell.canal ?? '';
+              const arfcn = String(arfcnValue).trim();
+              const channel = Number(arfcnValue);
+              const derivedNode = Number(id);
+              const frequencyInfo = Number.isFinite(channel) && channel > 0
+                ? techName === '5G' ? nrInfo(channel) : lteInfo(channel)
+                : {mhz: null};
+              out.push({
+                tech: techName, op, id, tac: String(cell.tac ?? '').trim(), pci: String(cell.pci ?? '').trim(),
+                lat, lon, addr, arfcn, node: node || (Number.isFinite(derivedNode)
+                  ? String(Math.floor(derivedNode / (techName === '5G' ? 16384 : 256))) : ''),
+                band: band === '?' ? frequencyInfo.band || '?' : band,
+                mhz: frequencyInfo.mhz
+              });
+            }
+          }
+        }
+      }
+      continue;
+    }
     const techName = String(item.technology || '').trim().toUpperCase();
     const tech = techName === 'NR' ? '5G' : techName === 'LTE' ? '4G' : '';
     if (!tech) continue;
@@ -238,7 +283,26 @@ function icon(s) {
     html: `<div class="ant" style="width:${sz}px;height:${sz}px;background:${bg}"><i>${s.max5 ? '5G' : '4G'}</i></div>`});
 }
 const esc = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-const fq = c => c.mhz ? c.mhz.toFixed(1) + ' MHz' : '–';
+function bandTables(cells, tech) {
+  const groups = new Map();
+  for (const c of cells) {
+    if (!groups.has(c.band)) groups.set(c.band, []);
+    groups.get(c.band).push(c);
+  }
+  let h = '';
+  for (const [band, sectors] of [...groups].sort(([a], [b]) => a.localeCompare(b, undefined, {numeric: true}))) {
+    sectors.sort((a, b) => a.node - b.node || a.pci - b.pci);
+    h += `<h4>${esc(band)} · ${sectors.length} ${sectors.length === 1 ? 'setor' : 'setores'}</h4>`;
+    h += tech === '5G'
+      ? `<table class="c"><tr><th>gNB</th><th>NCI</th><th>PCI</th><th>TAC</th></tr>`
+      : `<table class="c"><tr><th>eNB</th><th>CI</th><th>PCI</th><th>TAC</th></tr>`;
+    for (const c of sectors) {
+      h += `<tr><td>${esc(c.node)}</td><td>${esc(c.id)}</td><td>${esc(c.pci)}</td><td>${esc(c.tac)}</td></tr>`;
+    }
+    h += `</table>`;
+  }
+  return h;
+}
 
 function popup(s) {
   let h = `<div class="pop"><h3>${s.keys.length > 1 ? 'Antena partilhada (' + s.keys.length + ' operadoras)' : 'Antena ' + esc(opName(s.keys[0]))}</h3>
@@ -247,18 +311,8 @@ function popup(s) {
     const l = s.ops.get(k);
     const g5 = l.filter(c => c.tech === '5G'), g4 = l.filter(c => c.tech === '4G');
     h += `<div class="op" style="border-color:${opColor(k)}"><b>${esc(opName(k))}</b><span class="tag ${g5.length ? 'g5' : ''}">máx ${g5.length ? '5G' : '4G'}</span>`;
-    if (g5.length) {
-      h += `<table class="c"><tr><th>5G</th><th>gNB</th><th>NCI</th><th>PCI</th><th>Canal / freq.</th><th>TAC</th></tr>`;
-      for (const c of g5.sort((a, b) => a.node - b.node || a.pci - b.pci))
-        h += `<tr><td>${esc(c.band)} · ${fq(c)}</td><td>${c.node}</td><td>${esc(c.id)}</td><td>${esc(c.pci)}</td><td>${esc(c.arfcn)}</td><td>${esc(c.tac)}</td></tr>`;
-      h += `</table>`;
-    }
-    if (g4.length) {
-      h += `<table class="c"><tr><th>4G</th><th>eNB</th><th>CI</th><th>PCI</th><th>Canal / freq.</th><th>TAC</th></tr>`;
-      for (const c of g4.sort((a, b) => a.node - b.node || a.pci - b.pci))
-        h += `<tr><td>${esc(c.band)} · ${fq(c)}</td><td>${esc(c.node)}</td><td>${esc(c.id)}</td><td>${esc(c.pci)}</td><td>${esc(c.arfcn)}</td><td>${esc(c.tac)}</td></tr>`;
-      h += `</table>`;
-    }
+    if (g5.length) h += bandTables(g5, '5G');
+    if (g4.length) h += bandTables(g4, '4G');
     h += `</div>`;
   }
   return h + '</div>';
