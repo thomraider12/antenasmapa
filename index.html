@@ -1,409 +1,158 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-PT">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mapa de antenas NTM/JSON</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<meta name="description" content="Visualizador local de células móveis 4G/5G a partir de ficheiros NTM, CSV e JSON.">
+<title>Mapa de antenas — NTM/JSON</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <style>
-:root{--bg:#f5f6f7;--panel:#fff;--tx:#1b1f23;--mut:#66707a;--line:#d8dde2;color-scheme:light}
-@media (prefers-color-scheme:dark){:root{--bg:#14171a;--panel:#1d2125;--tx:#e8ebee;--mut:#98a2ab;--line:#33393f;color-scheme:dark}}
-*{box-sizing:border-box}
-html,body{height:100%;margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx)}
-#app{display:grid;grid-template-columns:300px 1fr;height:100%}
-aside{background:var(--panel);border-right:1px solid var(--line);padding:16px;overflow:auto}
-h1{font-size:18px;margin:0 0 12px}
-h2{font-size:13px;margin:18px 0 6px;color:var(--mut);font-weight:600}
-#map{height:100%;min-height:300px}
-#drop{border:2px dashed var(--line);border-radius:8px;padding:14px;text-align:center;cursor:pointer;color:var(--mut)}
-#drop.over{border-color:#2e26ff;color:var(--tx)}
-label.chk{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer}
-.sw{width:14px;height:14px;border-radius:50%;border:1px solid var(--line);flex:none}
-#stats{color:var(--mut);font-size:13px}
-#status{color:var(--mut);font-size:12px;margin-top:6px}
-#clear{margin-top:8px;padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--tx);cursor:pointer}
-#note{display:none;background:#fff3cd;color:#5c4400;padding:6px 8px;border-radius:6px;font-size:12px;margin-top:10px}
-.leaflet-popup-content{margin:12px 14px;min-width:260px;max-width:420px;max-height:60vh;overflow:auto;font:13px/1.4 system-ui,sans-serif;color:#1b1f23}
-.pop h3{margin:0 0 2px;font-size:14px}
-.pop .ad{color:#66707a;margin-bottom:6px}
-.op{margin-top:10px;border-left:5px solid;padding-left:8px}
-.op b{font-size:13px}
-.tag{display:inline-block;font-size:11px;padding:0 6px;border-radius:9px;background:#1b1f23;color:#fff;margin-left:4px}
-.tag.g5{background:#0a7d3b}
-table.c{border-collapse:collapse;width:100%;margin-top:4px;font-size:12px}
-table.c th,table.c td{text-align:left;padding:2px 6px 2px 0;white-space:nowrap}
-table.c th{color:#66707a;font-weight:600}
-.ant{border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
-.ant i{font-style:normal;font-size:10px;font-weight:700;background:#fff;color:#111;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center}
-@media (max-width:760px){#app{grid-template-columns:1fr;grid-template-rows:auto 1fr}aside{border-right:0;border-bottom:1px solid var(--line);max-height:42vh}}
+:root{color-scheme:light;--bg:#f3f5f7;--panel:#fff;--panel2:#f7f8fa;--tx:#1b1f23;--mut:#66707a;--line:#d8dde2;--accent:#315efb;--accentText:#fff;--warn:#fff3cd;--warnText:#5c4400;--shadow:0 3px 14px #0002}
+@media(prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#111519;--panel:#1b2025;--panel2:#232930;--tx:#e8ebee;--mut:#a0aab4;--line:#343c45;--accent:#7a95ff;--accentText:#111519;--warn:#473b16;--warnText:#fff0b0;--shadow:0 3px 14px #0005}}
+*{box-sizing:border-box}html,body{height:100%;margin:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx)}button,input,select{font:inherit}button,select,input[type="text"],input[type="search"]{border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--tx);padding:7px 9px}button{cursor:pointer;transition:background .15s,border-color .15s}button:hover{border-color:var(--accent)}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:var(--accent);border-color:var(--accent);color:var(--accentText)}.subtle{background:var(--panel2)}.danger{color:#c62828}.muted{color:var(--mut)}.small{font-size:12px}#app{display:grid;grid-template-columns:330px minmax(0,1fr);height:100%;min-height:0}aside{background:var(--panel);border-right:1px solid var(--line);padding:14px;overflow:auto;min-height:0;z-index:500}h1{font-size:19px;line-height:1.25;margin:0}h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin:18px 0 7px;color:var(--mut);font-weight:750}h3{font-size:14px;margin:0 0 6px}p{margin:6px 0}.head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}.head-mark{display:flex;align-items:center;gap:9px}.logo{width:34px;height:34px;border-radius:10px;background:var(--accent);color:var(--accentText);display:grid;place-items:center;font-weight:850;font-size:11px;flex:none}.head-actions{display:flex;gap:5px}.iconbtn{min-width:34px;min-height:34px;padding:5px}.section{border-top:1px solid var(--line);padding-top:3px}.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row .fit{flex:0 0 auto}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px}.full{width:100%}#drop{border:2px dashed var(--line);border-radius:10px;padding:14px 9px;text-align:center;cursor:pointer;color:var(--mut);background:var(--panel2);transition:.15s}#drop.over{border-color:var(--accent);color:var(--tx);background:color-mix(in srgb,var(--accent) 8%,var(--panel))}#drop strong{color:var(--tx)}#file{display:none}.chk{display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;min-height:26px}.chk input{accent-color:var(--accent)}.sw{width:13px;height:13px;border-radius:50%;border:1px solid #8886;flex:none;display:inline-block}.inline-chks{display:flex;gap:13px;flex-wrap:wrap}.help{font-size:11px;color:var(--mut);margin-top:5px}.field{display:flex;flex-direction:column;gap:4px;margin:6px 0}.field>span{font-size:12px;color:var(--mut);font-weight:650}.field input,.field select{width:100%;min-width:0}.stats{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}.stat{padding:8px;border:1px solid var(--line);background:var(--panel2);border-radius:8px;min-width:0}.stat strong{font-size:18px;display:block;line-height:1.25;font-variant-numeric:tabular-nums}.stat span{font-size:11px;color:var(--mut)}#status{color:var(--mut);font-size:12px;white-space:pre-wrap;margin-top:8px;overflow-wrap:anywhere}#note{display:none;background:var(--warn);color:var(--warnText);padding:7px 9px;border-radius:7px;font-size:12px;margin-top:8px}#fops{margin-top:2px}.op-actions{display:flex;gap:6px;margin-bottom:5px}.op-actions button{font-size:11px;padding:4px 7px}.checklist{max-height:150px;overflow:auto;border:1px solid var(--line);border-radius:7px;padding:4px 8px}#loadedFiles{font-size:11px;color:var(--mut);max-height:90px;overflow:auto;margin-top:6px}#loadedFiles div{padding:2px 0;overflow-wrap:anywhere}.export-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.export-grid button{font-size:11px;padding:7px 3px}#mapwrap{position:relative;min-width:0;min-height:0}#map{height:100%;width:100%;background:#e8edf0}.map-tools{position:absolute;z-index:700;top:12px;right:12px;display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end;max-width:min(540px,calc(100% - 24px))}.map-tools button{box-shadow:var(--shadow);background:var(--panel);padding:8px 10px}.map-tools button span{margin-left:3px}.map-coords{position:absolute;z-index:700;left:12px;bottom:25px;padding:4px 7px;border-radius:5px;background:var(--panel);box-shadow:var(--shadow);font-size:11px;color:var(--mut);pointer-events:none}.map-legend{position:absolute;z-index:700;left:12px;top:12px;max-width:205px;padding:8px 10px;border-radius:8px;background:var(--panel);box-shadow:var(--shadow);font-size:11px;color:var(--mut);pointer-events:none}.map-legend strong{color:var(--tx)}#resultPanel{position:absolute;z-index:800;right:12px;bottom:42px;width:min(430px,calc(100% - 24px));max-height:min(48vh,470px);background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);display:none;flex-direction:column;overflow:hidden}#resultPanel.open{display:flex}.panel-head{padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line)}#resultList{overflow:auto;padding:4px}.result-item{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:9px;background:transparent}.result-item:last-child{border-bottom:0}.result-item:hover{background:var(--panel2)}.result-title{font-weight:700;display:block;overflow-wrap:anywhere}.result-meta{font-size:11px;color:var(--mut);display:block;margin-top:2px}.result-badge{display:inline-block;border-radius:4px;background:var(--panel2);padding:1px 4px;margin-right:3px}.pop{min-width:250px;max-width:390px;color:#1b1f23}.pop h3{font-size:14px;margin:0 0 3px}.pop .ad{color:#66707a;margin-bottom:7px;overflow-wrap:anywhere}.pop .actions{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0}.pop .actions a,.pop .actions button{font:12px system-ui;padding:4px 7px;border:1px solid #ccd2d9;border-radius:5px;background:#f7f8fa;color:#18202a;text-decoration:none;cursor:pointer}.op{margin-top:10px;border-left:4px solid;padding-left:8px}.op>b{font-size:13px}.tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:9px;background:#1b1f23;color:#fff;margin-left:4px;vertical-align:1px}.tag.g5{background:#087b3a}table.c{border-collapse:collapse;width:100%;margin-top:4px;font-size:11px}table.c th,table.c td{text-align:left;padding:3px 5px 3px 0;white-space:nowrap}table.c th{color:#66707a;font-weight:650}table.c td{border-top:1px solid #e5e8eb}.ant{border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #0008;display:flex;align-items:center;justify-content:center}.ant i{font-style:normal;font-size:10px;font-weight:800;background:#fff;color:#111;border-radius:50%;width:21px;height:21px;display:flex;align-items:center;justify-content:center}.leaflet-popup-content{margin:12px 14px;max-height:65vh;overflow:auto}.leaflet-control-attribution{font-size:10px}.leaflet-control-scale-line{background:var(--panel);color:var(--tx);border-color:var(--mut)}.map-fullscreen #mapwrap:fullscreen{width:100%;height:100%}.hidden{display:none!important}#app.sidebar-hidden{grid-template-columns:0 minmax(0,1fr)}#app.sidebar-hidden aside{display:none}
+@media(max-width:800px){#app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,44vh) minmax(0,1fr)}aside{border-right:0;border-bottom:1px solid var(--line);padding:10px 12px;max-height:44vh}#app.sidebar-hidden{grid-template-rows:0 minmax(0,1fr)}#app.sidebar-hidden aside{display:none}.map-tools{top:8px;right:8px;max-width:calc(100% - 16px)}.map-tools button{padding:7px 8px;font-size:12px}.map-legend{left:8px;top:8px;max-width:140px}.map-coords{left:8px;bottom:22px}#resultPanel{right:8px;bottom:30px;max-height:52vh;width:calc(100% - 16px)}}
+@media(max-width:420px){.map-legend{display:none}.map-tools button .long{display:none}.stats{grid-template-columns:repeat(4,minmax(0,1fr))}.stat{padding:6px 5px}.stat strong{font-size:14px}.stat span{font-size:9px}.export-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
 <body>
 <div id="app">
-<aside>
-  <h1>Mapa de antenas</h1>
-  <div id="drop">Largar ficheiros NTM ou JSON aqui<br>ou clicar para escolher vários</div>
-  <input type="file" id="file" accept=".ntm,.txt,.csv,.json,text/plain,application/json" multiple hidden>
-  <div id="stats" style="margin-top:10px">Nenhum ficheiro carregado.</div>
-  <div id="status" role="status" aria-live="polite"></div>
-  <button id="clear" type="button">Limpar dados guardados</button>
+<aside id="sidebar">
+  <div class="head"><div class="head-mark"><div class="logo">4G/5G</div><div><h1>Mapa de antenas</h1><div class="small muted">Importador NTM · CSV · JSON</div></div></div><div class="head-actions"><button id="hideSidebar" class="iconbtn" title="Ocultar painel" aria-label="Ocultar painel">◀</button></div></div>
+  <div id="drop" tabindex="0" role="button" aria-label="Escolher ou largar ficheiros"><strong>Largar ficheiros aqui</strong><br>ou clicar para escolher vários<br><span class="small">.ntm · .txt · .csv · .json</span></div>
+  <input type="file" id="file" accept=".ntm,.txt,.csv,.json,text/plain,application/json,text/csv" multiple>
+  <label class="chk small"><input type="checkbox" id="mergeMode" checked> Acrescentar aos dados atuais (desmarcar para substituir)</label>
+  <div class="row"><button id="undoImport" class="subtle" disabled>↶ Desfazer importação</button><button id="fit" class="subtle">Enquadrar dados</button></div>
+  <div class="stats" id="stats">
+    <div class="stat"><strong id="statCells">0</strong><span>Células carregadas</span></div><div class="stat"><strong id="statSites">0</strong><span>Locais filtrados</span></div><div class="stat"><strong id="statShared">0</strong><span>Partilhados</span></div><div class="stat"><strong id="stat5g">0</strong><span>Locais com 5G</span></div>
+  </div>
+  <div id="status" role="status" aria-live="polite">Carrega um ficheiro para começar. Os dados ficam guardados neste navegador.</div>
   <div id="note"></div>
-  <h2>Operadoras</h2><div id="fops">–</div>
-  <h2>Tecnologia</h2>
-  <label class="chk"><input type="checkbox" id="t4" checked> 4G</label>
-  <label class="chk"><input type="checkbox" id="t5" checked> 5G</label>
+  <h2>Pesquisa e filtros</h2>
+  <label class="field"><span>Pesquisar dados</span><input id="search" type="search" placeholder="Local, CI, eNB/gNB, TAC, PCI, banda…" autocomplete="off"></label>
+  <div class="field"><span>Banda</span><select id="bandFilter"><option value="">Todas as bandas</option></select></div>
+  <div class="inline-chks"><label class="chk"><input type="checkbox" id="t4" checked> 4G / LTE</label><label class="chk"><input type="checkbox" id="t5" checked> 5G / NR</label></div>
+  <label class="chk"><input type="checkbox" id="onlyShared"> Apenas locais partilhados</label>
+  <label class="chk"><input type="checkbox" id="onlyAddress"> Apenas com localização textual</label>
+  <div class="row"><button id="resetFilters" class="subtle">Limpar filtros</button><button id="listToggle" class="subtle">☷ Ver lista</button></div>
+  <h2>Operadoras</h2>
+  <div class="op-actions"><button id="selectAllOps" class="subtle">Todas</button><button id="selectNoOps" class="subtle">Nenhuma</button></div>
+  <div id="fops" class="checklist"><span class="muted small">Importa dados para ver as operadoras.</span></div>
+  <h2>Visualização</h2>
+  <label class="chk"><input type="checkbox" id="groupSites" checked> Agrupar células por local</label>
+  <label class="chk"><input type="checkbox" id="fitOnImport" checked> Enquadrar ao importar</label>
+  <label class="field"><span>Mapa de fundo</span><select id="basemap"><option value="osm">OpenStreetMap</option><option value="dark">CartoDB escuro</option><option value="satellite">Satélite (Esri)</option></select></label>
+  <div class="row"><button id="locate" class="subtle">◎ A minha localização</button><button id="copyView" class="subtle">Copiar link da vista</button></div>
+  <h2>Exportar dados filtrados</h2>
+  <label class="chk small"><input type="checkbox" id="exportViewportOnly"> Exportar apenas a área visível do mapa</label>
+  <div class="export-grid"><button id="exportCsv" class="subtle">↓ CSV células</button><button id="exportJson" class="subtle">↓ JSON células</button><button id="exportGeo" class="subtle">↓ GeoJSON locais</button></div>
+  <div class="row" style="margin-top:6px"><button id="clearData" class="subtle danger">Apagar todos os dados</button><button id="fullScreen" class="subtle">⛶ Ecrã inteiro</button></div>
+  <div id="loadedFiles"></div>
   <h2>Legenda</h2>
-  <div style="color:var(--mut);font-size:13px">Uma cor: antena de uma só operadora.<br>Várias cores: antena partilhada.<br>O centro indica a tecnologia máxima (4G ou 5G).</div>
+  <div class="small muted">A cor identifica a operadora. Locais com várias cores têm várias operadoras. O círculo central indica a tecnologia máxima visível no local. Os dados são processados localmente no navegador; os mapas de fundo necessitam de Internet.</div>
+  <p class="small muted">Atalhos: <kbd>/</kbd> pesquisar · <kbd>Esc</kbd> limpar pesquisa/fechar lista.</p>
 </aside>
-<div id="map"></div>
+<div id="mapwrap">
+  <div id="map" aria-label="Mapa interativo de células móveis"></div>
+  <div class="map-legend"><strong>Mapa de antenas</strong><br>Use a pesquisa e os filtros no painel.<br>Clique num marcador para ver os setores.</div>
+  <div class="map-tools"><button id="showSidebar" class="hidden" title="Mostrar painel">☰ <span class="long">Painel</span></button><button id="mapFit" title="Enquadrar resultados">⌖ <span class="long">Enquadrar</span></button><button id="mapLocate" title="A minha localização">◎</button><button id="mapList" title="Lista de resultados">☷</button><button id="mapFullscreen" title="Ecrã inteiro">⛶</button></div>
+  <div id="mapCoords" class="map-coords">Passe o rato sobre o mapa para ver as coordenadas</div>
+  <div id="resultPanel"><div class="panel-head"><strong id="resultTitle">Resultados</strong><button id="closeList" class="iconbtn" aria-label="Fechar lista">✕</button></div><div id="resultList"></div></div>
 </div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
-const OPS = {
-  '268-01': ['Vodafone', '#e60000'],
-  '268-02': ['DIGI', '#0099fe'],
-  '268-03': ['NOS', '#000000'],
-  '268-06': ['MEO', '#2e26ff']
+'use strict';
+const OPS={
+  '268-01':['Vodafone','#e60000'],'268-02':['DIGI','#0099fe'],'268-03':['NOS','#222222'],'268-06':['MEO','#2e26ff'],
+  '268-07':['NOWO','#7f3fbf']
 };
-const SITE_OPS = {'vodafone': '268-01', 'digi': '268-02', 'nos': '268-03', 'meo': '268-06'};
-const opName = k => (OPS[k] || ['MCC-MNC ' + k])[0];
-const opColor = k => (OPS[k] || [0, '#888888'])[1];
-
-// LTE: [banda, F_DL_low (MHz), N_offs_DL, N_max]
-const LTE = [[1,2110,0,599],[2,1930,600,1199],[3,1805,1200,1949],[4,2110,1950,2399],[5,869,2400,2649],
-  [7,2620,2750,3449],[8,925,3450,3799],[12,729,5010,5179],[20,791,6150,6449],[26,859,8690,9039],
-  [28,758,9210,9659],[32,1452,9920,10359],[38,2570,37750,38249],[40,2300,38650,39649],[41,2496,39650,41589]];
-function lteInfo(n) {
-  if (isNaN(n)) return {band: '?', mhz: null};
-  for (const [b, f, o, m] of LTE) if (n >= o && n <= m) return {band: 'B' + b, mhz: f + 0.1 * (n - o)};
-  return {band: '?', mhz: null};
-}
-// NR: banda a partir da frequência DL
-const NR = [['n28',758,791],['n20',791,821],['n8',925,960],['n3',1805,1880],['n1',2110,2170],['n40',2300,2400],
-  ['n41',2496,2620],['n7',2620,2690],['n78',3300,3800],['n258',24250,27500]];
-function nrInfo(n) {
-  if (isNaN(n)) return {band: '?', mhz: null};
-  const f = n < 600000 ? 0.005 * n : 3000 + 0.015 * (n - 600000);
-  const hit = NR.find(([, a, b]) => f >= a && f <= b);
-  return {band: hit ? hit[0] : '?', mhz: f};
-}
-
-const STORAGE_KEY = 'mapa-antenas-cells-v1';
-let cells = [], sites = [], opsSeen = new Set(), enabledOps = new Set();
-
-function parse(text) {
-  const out = []; let skipped = 0;
-  for (const raw of text.split(/\r?\n/)) {
-    const p = raw.trim().split(';');
-    if (p.length < 11) continue;
-    const tech = p[0].trim();
-    if (tech !== '4G' && tech !== '5G') continue; // ignora 2G e o resto
-    const lat = parseFloat(p[7].replace(',', '.')), lon = parseFloat(p[8].replace(',', '.'));
-    if (isNaN(lat) || isNaN(lon)) { skipped++; continue; }
-    const c = {tech, op: p[1].trim() + '-' + p[2].trim().padStart(2, '0'), id: p[3].trim(), tac: p[4].trim(),
-      pci: p[6].trim(), lat, lon, addr: p[9].trim(), arfcn: p[10].trim()};
-    const a = parseInt(c.arfcn, 10);
-    if (tech === '5G') {
-      c.node = Math.floor(Number(c.id) / 16384); // gNB
-      Object.assign(c, nrInfo(a));
-    } else {
-      c.node = p[5].trim(); // eNB
-      Object.assign(c, lteInfo(a));
-    }
-    out.push(c);
+const SITE_OPS={vodafone:'268-01',digi:'268-02',nos:'268-03',meo:'268-06',nowo:'268-07'};
+const STORAGE_KEY='mapa-antenas-cells-v2',PREF_KEY='mapa-antenas-prefs-v2',MAXSHOW=3500,MAX_LIST=150;
+const $=id=>document.getElementById(id);
+let cells=[],sites=[],opsSeen=new Set(),enabledOps=new Set(),lastSnapshot=null,loadedFiles=[],locationLayer=null,renderTimer=null;
+const opName=k=>(OPS[k]||['MCC-MNC '+k])[0];
+function hashColor(str){let h=0;for(let i=0;i<str.length;i++)h=(h*31+str.charCodeAt(i))|0;const colors=['#7b4ab5','#008577','#b45309','#0077b6','#a23b72','#52796f','#6c757d','#9b2226','#5a67d8','#4d7c0f'];return colors[Math.abs(h)%colors.length]}
+const opColor=k=>(OPS[k]||[null,hashColor(k)])[1];
+const esc=t=>String(t??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const num=v=>{if(v===null||v===undefined||String(v).trim()==='')return NaN;return Number(String(v).trim().replace(',','.'))};
+function validCoords(lat,lon){return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180&&Math.abs(lat)!==2147483647&&Math.abs(lon)!==2147483647}
+function freqInfo(tech,value){const n=Number(value);if(!Number.isFinite(n)||n<=0)return{band:'?',mhz:null};if(tech==='5G')return n>=100000?nrInfo(n):nrFrequencyInfo(n);return n<10000?lteFrequencyInfo(n):lteInfo(n)}
+// LTE ARFCN: banda, frequência DL inicial, N_offs_DL, N_max
+const LTE=[[1,2110,0,599],[2,1930,600,1199],[3,1805,1200,1949],[4,2110,1950,2399],[5,869,2400,2649],[7,2620,2750,3449],[8,925,3450,3799],[12,729,5010,5179],[20,791,6150,6449],[26,859,8690,9039],[28,758,9210,9659],[32,1452,9920,10359],[38,2570,37750,38249],[40,2300,38650,39649],[41,2496,39650,41589]];
+function lteInfo(n){if(!Number.isFinite(n))return{band:'?',mhz:null};for(const[b,f,o,m]of LTE)if(n>=o&&n<=m)return{band:'B'+b,mhz:f+0.1*(n-o)};return{band:'?',mhz:null}}
+const NR=[['n28',758,791],['n20',791,821],['n8',925,960],['n3',1805,1880],['n1',2110,2170],['n40',2300,2400],['n41',2496,2620],['n7',2620,2690],['n78',3300,3800],['n258',24250,27500]];
+function nrInfo(n){if(!Number.isFinite(n))return{band:'?',mhz:null};const f=n<600000?0.005*n:3000+0.015*(n-600000);const hit=NR.find(([,a,b])=>f>=a&&f<=b);return{band:hit?hit[0]:'?',mhz:f}}
+function nrFrequencyInfo(f){const hit=NR.find(([,a,b])=>f>=a&&f<=b);return{band:hit?hit[0]:'?',mhz:f}}
+function lteFrequencyInfo(f){const bands=[[1,2110,2170],[2,1930,1990],[3,1805,1880],[4,2110,2155],[5,869,894],[7,2620,2690],[8,925,960],[12,729,746],[20,791,821],[26,859,894],[28,758,803],[32,1452,1496],[38,2570,2620],[40,2300,2400],[41,2496,2690]];const hit=bands.find(([,lo,hi])=>f>=lo&&f<=hi);return{band:hit?'B'+hit[0]:'?',mhz:f}}
+function splitDelimited(line,delimiter=';'){const out=[];let value='',quoted=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'&&line[i+1]==='"'&&quoted){value+='"';i++;}else if(ch==='"'){quoted=!quoted;}else if(ch===delimiter&&!quoted){out.push(value);value='';}else value+=ch;}out.push(value);return out.map(v=>v.trim())}
+function parseNtm(text){const out=[];let skipped=0;const clean=text.replace(/^\uFEFF/,'');const first=clean.split(/\r?\n/).find(line=>line.trim())||'';const semiCount=splitDelimited(first,';').length-1,commaCount=splitDelimited(first,',').length-1;const delimiter=semiCount<10&&commaCount>=10?',':';';const lines=clean.split(/\r?\n/);for(const raw of lines){if(!raw.trim())continue;const p=splitDelimited(raw,delimiter);if(p.length<11)continue;const tech=p[0].trim().toUpperCase();if(tech!=='4G'&&tech!=='5G')continue;const lat=num(p[7]),lon=num(p[8]);if(!validCoords(lat,lon)){skipped++;continue;}const c={tech,op:p[1].trim()+'-'+p[2].trim().padStart(2,'0'),id:p[3].trim(),tac:p[4].trim(),pci:p[6].trim(),lat,lon,addr:p[9].trim(),arfcn:p[10].trim(),node:tech==='5G'?String(Math.floor(Number(p[3])/16384)):p[5].trim()};Object.assign(c,tech==='5G'?nrInfo(Number(c.arfcn)):lteInfo(Number(c.arfcn)));out.push(c);}return{out,skipped}}
+function unpackJsonRoot(data){if(Array.isArray(data))return data;for(const key of ['cells','data','results','records','antennas','sites'])if(Array.isArray(data?.[key]))return data[key];throw new Error('O JSON tem de conter uma lista (ou uma propriedade cells/data/results/records/sites com uma lista).')}
+function parseJson(text){const data=unpackJsonRoot(JSON.parse(text.replace(/^\uFEFF/,'')));const out=[];let skipped=0;for(const item of data){if(!item||typeof item!=='object'){skipped++;continue;}
+  // Formato sites.json: local com tecnologias organizadas por operadora/banda.
+  if(Array.isArray(item.ops)&&item.technologies&&typeof item.technologies==='object'){
+    const lat=num(item.lat),lon=num(item.lon);if(!validCoords(lat,lon)){skipped++;continue;}const addr=[item.freguesia,item.concelho,item.distrito].filter(v=>typeof v==='string'&&v.trim()).join(', ');const includedOps=new Set(item.ops.map(operator=>SITE_OPS[String(operator).trim().toLowerCase()]).filter(Boolean));
+    for(const techName of ['4G','5G']){const techData=item.technologies[techName]||item.technologies[techName==='4G'?'LTE':'NR'];if(!techData||typeof techData!=='object')continue;for(const[operator,operatorData]of Object.entries(techData)){const op=SITE_OPS[operator.trim().toLowerCase()]||Object.keys(OPS).find(k=>opName(k).toLowerCase()===operator.trim().toLowerCase());if(!op||(!includedOps.has(op)&&includedOps.size>0)||!operatorData?.bands||typeof operatorData.bands!=='object')continue;for(const[bandName,bandData]of Object.entries(operatorData.bands)){if(!Array.isArray(bandData?.cells))continue;const bm=bandName.match(/\b(?:n|b)\d+\b/i);const statedBand=bm?(techName==='5G'?bm[0].toLowerCase():bm[0].toUpperCase()):'?';for(const cell of bandData.cells){if(!cell||typeof cell!=='object'){skipped++;continue;}const id=String(cell.ci??cell.nci??cell.nci??'').trim();const node=String(cell[techName==='5G'?'gnb':'enb']??'').trim();const channelValue=cell.earfcn??cell.nrarfcn??cell.arfcn??cell.canal;const arfcnValue=channelValue??cell.frequency??'';const f=channelValue!=null?(techName==='5G'?nrInfo(Number(channelValue)):lteInfo(Number(channelValue))):freqInfo(techName,cell.frequency);out.push({tech:techName,op,id,tac:String(cell.tac??'').trim(),pci:String(cell.pci??'').trim(),lat,lon,addr,arfcn:String(arfcnValue).trim(),node:node||(Number.isFinite(Number(id))?String(Math.floor(Number(id)/(techName==='5G'?16384:256))):''),band:statedBand==='?'?f.band:statedBand,mhz:f.mhz});}}}}
+    continue;
   }
-  return {out, skipped};
-}
-
-function parseJson(text) {
-  text = text.replace(/^\uFEFF/, '');
-  const data = JSON.parse(text);
-  if (!Array.isArray(data)) throw new Error('O JSON tem de conter uma lista de células.');
-  const out = []; let skipped = 0;
-  for (const item of data) {
-    if (!item || typeof item !== 'object') { skipped++; continue; }
-    if (Array.isArray(item.ops) && item.technologies && typeof item.technologies === 'object') {
-      const lat = Number(item.lat), lon = Number(item.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-        skipped++; continue;
-      }
-      const addr = [item.freguesia, item.concelho, item.distrito]
-        .filter(value => typeof value === 'string' && value.trim()).join(', ');
-      const includedOps = new Set(item.ops
-        .map(operator => SITE_OPS[String(operator).trim().toLowerCase()])
-        .filter(Boolean));
-      for (const techName of ['4G', '5G']) {
-        const techData = item.technologies[techName];
-        if (!techData || typeof techData !== 'object') continue;
-        for (const [operator, operatorData] of Object.entries(techData)) {
-          const op = SITE_OPS[operator.trim().toLowerCase()];
-          if (!op || !includedOps.has(op) || !operatorData?.bands || typeof operatorData.bands !== 'object') continue;
-          for (const [bandName, bandData] of Object.entries(operatorData.bands)) {
-            if (!Array.isArray(bandData?.cells)) continue;
-            const bandMatch = bandName.match(/\b(?:n|b)\d+\b/i);
-            const band = bandMatch ? (techName === '5G' ? bandMatch[0].toLowerCase() : bandMatch[0].toUpperCase()) : '?';
-            for (const cell of bandData.cells) {
-              if (!cell || typeof cell !== 'object') { skipped++; continue; }
-              const id = String(cell.ci ?? '').trim();
-              const node = String(cell[techName === '5G' ? 'gnb' : 'enb'] ?? '').trim();
-              const arfcnValue = cell.arfcn ?? cell.earfcn ?? cell.canal ?? '';
-              const arfcn = String(arfcnValue).trim();
-              const channel = Number(arfcnValue);
-              const derivedNode = Number(id);
-              const frequencyInfo = Number.isFinite(channel) && channel > 0
-                ? techName === '5G' ? nrInfo(channel) : lteInfo(channel)
-                : {mhz: null};
-              out.push({
-                tech: techName, op, id, tac: String(cell.tac ?? '').trim(), pci: String(cell.pci ?? '').trim(),
-                lat, lon, addr, arfcn, node: node || (Number.isFinite(derivedNode)
-                  ? String(Math.floor(derivedNode / (techName === '5G' ? 16384 : 256))) : ''),
-                band: band === '?' ? frequencyInfo.band || '?' : band,
-                mhz: frequencyInfo.mhz
-              });
-            }
-          }
-        }
-      }
-      continue;
-    }
-    const techName = String(item.technology || '').trim().toUpperCase();
-    const tech = techName === 'NR' ? '5G' : techName === 'LTE' ? '4G' : '';
-    if (!tech) continue;
-    const lat = Number(item.latitude), lon = Number(item.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      skipped++; continue;
-    }
-    const network = item.network || {};
-    if (network.mcc == null || network.mnc == null) { skipped++; continue; }
-    const id = String(item.cid ?? '').trim();
-    const pci = String(item.code ?? '').trim();
-    const frequency = Number(item.frequency);
-    const hasFrequency = item.frequency != null && Number.isFinite(frequency);
-    const c = {
-      tech, op: String(network.mcc).trim() + '-' + String(network.mnc).trim().padStart(2, '0'),
-      id, tac: String(item.area ?? '').trim(), pci, lat, lon,
-      addr: String(item.location || '').trim(), arfcn: hasFrequency ? String(item.frequency) : '',
-      node: tech === '5G' ? Math.floor(Number(id) / 16384) : Math.floor(Number(id) / 256)
-    };
-    if (hasFrequency && frequency > 0) {
-      if (tech === '5G' && frequency >= 100000) Object.assign(c, nrInfo(frequency));
-      else if (tech === '5G') Object.assign(c, nrFrequencyInfo(frequency));
-      else if (frequency < 10000) Object.assign(c, lteFrequencyInfo(frequency));
-      else Object.assign(c, lteInfo(frequency));
-    } else {
-      c.band = '?'; c.mhz = null;
-    }
-    out.push(c);
-  }
-  return {out, skipped};
-}
-
-function nrFrequencyInfo(frequency) {
-  const hit = NR.find(([, low, high]) => frequency >= low && frequency <= high);
-  return {band: hit ? hit[0] : '?', mhz: frequency};
-}
-
-function lteFrequencyInfo(frequency) {
-  const bands = [[1,2110,2170],[2,1930,1990],[3,1805,1880],[4,2110,2155],[5,869,894],
-    [7,2620,2690],[8,925,960],[12,729,746],[20,791,821],[26,859,894],
-    [28,758,803],[32,1452,1496],[38,2570,2620],[40,2300,2400],[41,2496,2690]];
-  const hit = bands.find(([, low, high]) => frequency >= low && frequency <= high);
-  return {band: hit ? 'B' + hit[0] : '?', mhz: frequency};
-}
-
-function parseFile(text, name) {
-  const isJson = /\.json$/i.test(name) || /^[\s]*[\[{]/.test(text);
-  return isJson ? parseJson(text) : parse(text);
-}
-
-function cellKey(c) {
-  return [c.tech, c.op, c.id, c.tac, c.pci, c.lat, c.lon, c.arfcn].join('|');
-}
-
-function saveCells() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cells));
-    return '';
-  } catch (error) {
-    return 'Não foi possível guardar os dados localmente: ' + error.message;
-  }
-}
-
-function updateCells(incoming, fit = true) {
-  const unique = new Map(cells.map(c => [cellKey(c), c]));
-  for (const c of incoming) unique.set(cellKey(c), c);
-  cells = [...unique.values()];
-  opsSeen = new Set(cells.map(c => c.op)); enabledOps = new Set(opsSeen);
-  buildOpFilters();
-  if (!cells.length) {
-    document.getElementById('stats').textContent = 'Não foram encontradas células 4G/5G com coordenadas.';
-    sites = []; layer.clearLayers();
-    return;
-  }
-  if (fit) map.fitBounds(L.latLngBounds(cells.map(c => [c.lat, c.lon])), {maxZoom: 15, padding: [30, 30]});
-  buildSites();
-  return saveCells();
-}
-
-function buildSites() {
-  const t4 = document.getElementById('t4').checked, t5 = document.getElementById('t5').checked;
-  const m = new Map();
-  for (const c of cells) {
-    if (!enabledOps.has(c.op)) continue;
-    if (c.tech === '4G' && !t4) continue;
-    if (c.tech === '5G' && !t5) continue;
-    const key = c.lat.toFixed(4) + ',' + c.lon.toFixed(4);
-    let s = m.get(key);
-    if (!s) m.set(key, s = {lat: c.lat, lon: c.lon, addr: c.addr, ops: new Map()});
-    if (!s.addr || s.addr === '-') s.addr = c.addr;
-    if (!s.ops.has(c.op)) s.ops.set(c.op, []);
-    s.ops.get(c.op).push(c);
-  }
-  sites = [...m.values()];
-  for (const s of sites) {
-    s.keys = [...s.ops.keys()].sort();
-    s.max5 = [...s.ops.values()].some(l => l.some(c => c.tech === '5G'));
-  }
-  render();
-}
-
-const map = L.map('map', {preferCanvas: true}).setView([39.6, -8], 7);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19,
-  attribution: '&copy; OpenStreetMap'}).addTo(map);
-const layer = L.layerGroup().addTo(map);
-const MAXSHOW = 1500;
-
-function icon(s) {
-  const cols = s.keys.map(opColor);
-  const bg = cols.length === 1 ? cols[0] :
-    'conic-gradient(' + cols.map((c, i) => `${c} ${i * 100 / cols.length}% ${(i + 1) * 100 / cols.length}%`).join(',') + ')';
-  const sz = cols.length > 1 ? 36 : 32;
-  return L.divIcon({className: '', iconSize: [sz, sz], iconAnchor: [sz / 2, sz / 2],
-    html: `<div class="ant" style="width:${sz}px;height:${sz}px;background:${bg}"><i>${s.max5 ? '5G' : '4G'}</i></div>`});
-}
-const esc = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-function bandTables(cells, tech) {
-  const groups = new Map();
-  for (const c of cells) {
-    if (!groups.has(c.band)) groups.set(c.band, []);
-    groups.get(c.band).push(c);
-  }
-  let h = '';
-  for (const [band, sectors] of [...groups].sort(([a], [b]) => a.localeCompare(b, undefined, {numeric: true}))) {
-    sectors.sort((a, b) => a.node - b.node || a.pci - b.pci);
-    h += `<h4>${esc(band)} · ${sectors.length} ${sectors.length === 1 ? 'setor' : 'setores'}</h4>`;
-    h += tech === '5G'
-      ? `<table class="c"><tr><th>gNB</th><th>NCI</th><th>PCI</th><th>TAC</th></tr>`
-      : `<table class="c"><tr><th>eNB</th><th>CI</th><th>PCI</th><th>TAC</th></tr>`;
-    for (const c of sectors) {
-      h += `<tr><td>${esc(c.node)}</td><td>${esc(c.id)}</td><td>${esc(c.pci)}</td><td>${esc(c.tac)}</td></tr>`;
-    }
-    h += `</table>`;
-  }
-  return h;
-}
-
-function popup(s) {
-  let h = `<div class="pop"><h3>${s.keys.length > 1 ? 'Antena partilhada (' + s.keys.length + ' operadoras)' : 'Antena ' + esc(opName(s.keys[0]))}</h3>
-    <div class="ad">${esc(s.addr || '–')}<br>Máximo no local: <span class="tag ${s.max5 ? 'g5' : ''}">${s.max5 ? '5G' : '4G'}</span></div>`;
-  for (const k of s.keys) {
-    const l = s.ops.get(k);
-    const g5 = l.filter(c => c.tech === '5G'), g4 = l.filter(c => c.tech === '4G');
-    h += `<div class="op" style="border-color:${opColor(k)}"><b>${esc(opName(k))}</b><span class="tag ${g5.length ? 'g5' : ''}">máx ${g5.length ? '5G' : '4G'}</span>`;
-    if (g5.length) h += bandTables(g5, '5G');
-    if (g4.length) h += bandTables(g4, '4G');
-    h += `</div>`;
-  }
-  return h + '</div>';
-}
-
-function render() {
-  layer.clearLayers();
-  const b = map.getBounds().pad(0.1);
-  const vis = sites.filter(s => b.contains([s.lat, s.lon]));
-  const shown = vis.slice(0, MAXSHOW);
-  for (const s of shown) {
-    const mk = L.marker([s.lat, s.lon], {icon: icon(s)});
-    mk.bindPopup(() => popup(s), {maxWidth: 420});
-    layer.addLayer(mk);
-  }
-  const note = document.getElementById('note');
-  note.style.display = vis.length > MAXSHOW ? 'block' : 'none';
-  note.textContent = `A mostrar ${MAXSHOW} de ${vis.length} locais nesta vista. Aproxime o zoom para ver todos.`;
-  const shared = sites.filter(s => s.keys.length > 1).length;
-  document.getElementById('stats').innerHTML = cells.length ?
-    `${sites.length} locais · ${shared} partilhados · ${sites.filter(s => s.max5).length} com 5G<br>${cells.length} células 4G/5G nos dados carregados` : 'Nenhum ficheiro carregado.';
-}
-map.on('moveend', render);
-
-function buildOpFilters() {
-  const box = document.getElementById('fops'); box.innerHTML = '';
-  [...opsSeen].sort().forEach(k => {
-    const l = document.createElement('label'); l.className = 'chk';
-    l.innerHTML = `<input type="checkbox" checked><span class="sw" style="background:${opColor(k)}"></span>${esc(opName(k))}`;
-    l.firstChild.onchange = e => { e.target.checked ? enabledOps.add(k) : enabledOps.delete(k); buildSites(); };
-    box.appendChild(l);
-  });
-}
-
-const drop = document.getElementById('drop'), fin = document.getElementById('file');
-async function readFiles(files) {
-  if (!files.length) return;
-  const results = await Promise.all([...files].map(async file => {
-    try {
-      const {out, skipped} = parseFile(await file.text(), file.name);
-      return {name: file.name, out, skipped};
-    } catch (error) {
-      return {name: file.name, error};
-    }
-  }));
-  const good = results.filter(r => !r.error);
-  const incoming = good.flatMap(r => r.out);
-  const saveError = incoming.length ? updateCells(incoming) : '';
-  const errors = results.filter(r => r.error).map(r => `${r.name}: ${r.error.message}`);
-  const skipped = good.reduce((sum, r) => sum + r.skipped, 0);
-  const messages = [];
-  if (incoming.length) messages.push(`${incoming.length} células lidas em ${good.length} ficheiro(s).`);
-  else if (good.length) messages.push('Nenhuma célula válida encontrada nos ficheiros.');
-  if (skipped) messages.push(`${skipped} registo(s) ignorado(s) por falta de dados válidos.`);
-  if (errors.length) messages.push('Erro(s): ' + errors.join(' | '));
-  if (saveError) messages.push(saveError);
-  else if (incoming.length) messages.push('Dados guardados localmente para a próxima visita.');
-  document.getElementById('status').textContent = messages.join(' ');
-}
-drop.onclick = () => fin.click();
-fin.onchange = () => { readFiles(fin.files); fin.value = ''; };
-['dragover', 'dragenter'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
-['dragleave', 'drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
-drop.addEventListener('drop', ev => readFiles(ev.dataTransfer.files));
-document.getElementById('clear').onclick = () => {
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-    cells = []; sites = []; opsSeen.clear(); enabledOps.clear();
-    document.getElementById('fops').textContent = '–';
-    document.getElementById('stats').textContent = 'Nenhum ficheiro carregado.';
-    document.getElementById('status').textContent = 'Dados locais apagados.';
-    document.getElementById('note').style.display = 'none';
-    layer.clearLayers();
-  } catch (error) {
-    document.getElementById('status').textContent = 'Não foi possível apagar os dados locais: ' + error.message;
-  }
-};
-document.getElementById('t4').onchange = buildSites;
-document.getElementById('t5').onchange = buildSites;
-
-try {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) {
-    const restored = JSON.parse(saved);
-    if (!Array.isArray(restored)) throw new Error('Formato local inválido.');
-    updateCells(restored, true);
-    document.getElementById('status').textContent = 'Dados locais restaurados.';
-  }
-} catch (error) {
-  document.getElementById('status').textContent = 'Não foi possível restaurar os dados locais: ' + error.message;
-}
+  // NetMonster e outras exportações com tecnologia LTE/NR e coordenadas por célula.
+  const techRaw=String(item.technology??item.tech??'').trim().toUpperCase();const tech=['NR','5G','NR5G'].includes(techRaw)?'5G':['LTE','4G'].includes(techRaw)?'4G':'';if(!tech)continue;
+  const lat=num(item.latitude??item.lat??item.latitud),lon=num(item.longitude??item.lon??item.lng??item.long);if(!validCoords(lat,lon)){skipped++;continue;}const network=item.network||item;const mcc=network.mcc??item.mcc,mnc=network.mnc??item.mnc;if(mcc==null||mnc==null){skipped++;continue;}
+  const id=String(item.nci??item.cid??item.ci??item.cellId??'').trim(),channelValue=item.earfcn??item.nrarfcn??item.arfcn??item.channel,arfcnValue=channelValue??item.frequency??'';const c={tech,op:String(mcc).trim()+'-'+String(mnc).trim().padStart(2,'0'),id,tac:String(item.area??item.tac??'').trim(),pci:String(item.pci??item.code??'').trim(),lat,lon,addr:String(item.location??item.address??item.name??'').trim(),arfcn:String(arfcnValue).trim(),node:String(item.enb??item.gnb??'').trim()};if(!c.node&&id&&Number.isFinite(Number(id)))c.node=String(Math.floor(Number(id)/(tech==='5G'?16384:256)));Object.assign(c,channelValue!=null?(tech==='5G'?nrInfo(Number(channelValue)):lteInfo(Number(channelValue))):freqInfo(tech,item.frequency));out.push(c);
+  }return{out,skipped}}
+function parseFile(text,name){const isJson=/\.json$/i.test(name)||/^[\s]*[\[{]/.test(text);if(isJson)return parseJson(text);return parseNtm(text)}
+function cellKey(c){return[c.tech,c.op,c.id,c.tac,c.pci,c.lat,c.lon,c.arfcn].join('|')}
+function saveCells(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(cells));return''}catch(e){return'Não foi possível guardar todos os dados localmente: '+e.message+'. Exporta uma cópia JSON para segurança.'}}
+function savePrefs(){try{const prefs={t4:$('t4').checked,t5:$('t5').checked,groupSites:$('groupSites').checked,basemap:$('basemap').value,search:$('search').value,band:$('bandFilter').value,onlyShared:$('onlyShared').checked,onlyAddress:$('onlyAddress').checked,enabledOps:[...enabledOps]};localStorage.setItem(PREF_KEY,JSON.stringify(prefs))}catch(e){}}
+function loadPrefs(){try{const p=JSON.parse(localStorage.getItem(PREF_KEY)||'{}');for(const id of ['t4','t5','groupSites','onlyShared','onlyAddress'])if(typeof p[id]==='boolean')$(id).checked=p[id];if(typeof p.search==='string')$('search').value=p.search;if(p.basemap&&['osm','dark','satellite'].includes(p.basemap))$('basemap').value=p.basemap;return p}catch(e){return{}}}
+function setStatus(msg){$('status').textContent=msg}
+function updateCells(incoming,{fit=true,replace=false,sourceNames=[]}={}){const oldOps=new Set(cells.map(c=>c.op)),oldEnabled=new Set(enabledOps);lastSnapshot=cells.map(c=>({...c}));$('undoImport').disabled=false;if(replace)cells=[];const unique=new Map(cells.map(c=>[cellKey(c),c]));let added=0;for(const c of incoming){const k=cellKey(c);if(!unique.has(k))added++;unique.set(k,c);}cells=[...unique.values()];opsSeen=new Set(cells.map(c=>c.op));enabledOps=new Set([...opsSeen].filter(k=>replace||!oldOps.has(k)||oldEnabled.has(k)));buildOpFilters();refreshBandFilter();buildSites();if(fit&&cells.length&&$('fitOnImport').checked)fitAllCells();const saveError=saveCells();if(sourceNames.length){loadedFiles=[...new Set([...loadedFiles,...sourceNames])].slice(-40);renderLoadedFiles();}return{added,saveError}}
+function undoImport(){if(!lastSnapshot)return;cells=lastSnapshot;lastSnapshot=null;$('undoImport').disabled=true;opsSeen=new Set(cells.map(c=>c.op));enabledOps=new Set(opsSeen);buildOpFilters();refreshBandFilter();buildSites();saveCells();setStatus('Importação anterior desfeita.')}
+function buildOpFilters(){const box=$('fops');box.innerHTML='';if(!opsSeen.size){box.innerHTML='<span class="muted small">Importa dados para ver as operadoras.</span>';return;}[...opsSeen].sort((a,b)=>opName(a).localeCompare(opName(b),'pt')).forEach(k=>{const label=document.createElement('label');label.className='chk';const cb=document.createElement('input');cb.type='checkbox';cb.checked=enabledOps.has(k);cb.addEventListener('change',()=>{cb.checked?enabledOps.add(k):enabledOps.delete(k);buildSites();savePrefs()});const sw=document.createElement('span');sw.className='sw';sw.style.background=opColor(k);const txt=document.createElement('span');txt.textContent=opName(k);label.append(cb,sw,txt);box.append(label);});}
+function refreshBandFilter(){const sel=$('bandFilter'),current=sel.value;const bands=[...new Set(cells.filter(c=>(c.tech==='4G'&&$('t4').checked)||(c.tech==='5G'&&$('t5').checked)).map(c=>c.band||'?'))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));sel.innerHTML='<option value="">Todas as bandas</option>'+bands.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join('');if(bands.includes(current))sel.value=current;}
+function getFilteredCells(){const q=$('search').value.trim().toLocaleLowerCase('pt-PT'),band=$('bandFilter').value,t4=$('t4').checked,t5=$('t5').checked,onlyAddr=$('onlyAddress').checked;return cells.filter(c=>{if(!enabledOps.has(c.op))return false;if(c.tech==='4G'&&!t4||c.tech==='5G'&&!t5)return false;if(band&&c.band!==band)return false;if(onlyAddr&&(!c.addr||c.addr==='-'))return false;if(q){const hay=[c.addr,c.op,opName(c.op),c.id,c.node,c.tac,c.pci,c.band,c.arfcn,c.mhz,c.lat,c.lon,c.tech,c.source].join(' ').toLocaleLowerCase('pt-PT');if(!hay.includes(q))return false;}return true})}
+function buildSites(){const filtered=getFilteredCells(),groups=new Map(),grouped=$('groupSites').checked;for(const c of filtered){const key=grouped?c.lat.toFixed(4)+','+c.lon.toFixed(4):cellKey(c);let s=groups.get(key);if(!s){s={lat:c.lat,lon:c.lon,addr:c.addr,ops:new Map(),cells:[]};groups.set(key,s);}if((!s.addr||s.addr==='-')&&c.addr)s.addr=c.addr;if(!s.ops.has(c.op))s.ops.set(c.op,[]);s.ops.get(c.op).push(c);s.cells.push(c);}sites=[...groups.values()];for(const s of sites){s.keys=[...s.ops.keys()].sort();s.max5=s.cells.some(c=>c.tech==='5G');s.shared=s.keys.length>1;s.sortKey=(s.addr||'').toLocaleLowerCase('pt-PT');}if($('onlyShared').checked)sites=sites.filter(s=>s.shared);render();updateStats();renderResults();refreshBandFilterIfNeeded();savePrefs()}
+function refreshBandFilterIfNeeded(){/* bandas preservadas; reconstrução só é necessária depois da importação/alteração tecnológica */}
+function iconFor(s){const cols=s.keys.map(opColor),bg=cols.length===1?cols[0]:'conic-gradient('+cols.map((c,i)=>`${c} ${i*100/cols.length}% ${(i+1)*100/cols.length}%`).join(',')+')',size=cols.length>1?36:32;return L.divIcon({className:'',iconSize:[size,size],iconAnchor:[size/2,size/2],html:`<div class="ant" style="width:${size}px;height:${size}px;background:${bg}"><i>${s.max5?'5G':'4G'}</i></div>`})}
+function bandTables(list,tech){const groups=new Map();for(const c of list){const band=c.band||'?';if(!groups.has(band))groups.set(band,[]);groups.get(band).push(c);}let h='';for(const[band,sectors]of[...groups].sort(([a],[b])=>a.localeCompare(b,undefined,{numeric:true}))){sectors.sort((a,b)=>String(a.node).localeCompare(String(b.node),undefined,{numeric:true})||String(a.pci).localeCompare(String(b.pci),undefined,{numeric:true}));h+=`<h4>${esc(band)} · ${sectors.length} ${sectors.length===1?'setor':'setores'}</h4><table class="c"><tr><th>${tech==='5G'?'gNB':'eNB'}</th><th>${tech==='5G'?'NCI':'CI'}</th><th>PCI</th><th>TAC</th><th>ARFCN</th><th>MHz</th></tr>`;for(const c of sectors)h+=`<tr><td>${esc(c.node||'–')}</td><td>${esc(c.id||'–')}</td><td>${esc(c.pci||'–')}</td><td>${esc(c.tac||'–')}</td><td>${esc(c.arfcn||'–')}</td><td>${c.mhz==null?'–':esc(Number(c.mhz).toFixed(2))}</td></tr>`;h+='</table>';}return h}
+function popup(s){const lat=s.lat.toFixed(6),lon=s.lon.toFixed(6);let h=`<div class="pop"><h3>${s.shared?'Local partilhado ('+s.keys.length+' operadoras)':'Local — '+esc(opName(s.keys[0]||''))}</h3><div class="ad">${esc(s.addr||'Sem localização textual')}<br>Coordenadas: ${lat}, ${lon}<br>${s.cells.length} ${s.cells.length===1?'célula':'células'} no filtro atual · Máximo: <span class="tag ${s.max5?'g5':''}">${s.max5?'5G':'4G'}</span></div><div class="actions"><button type="button" class="copy-coords" data-coords="${lat}, ${lon}">Copiar coordenadas</button><a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}" target="_blank" rel="noopener noreferrer">Abrir no OSM ↗</a></div>`;for(const k of s.keys){const list=s.ops.get(k)||[],g5=list.filter(c=>c.tech==='5G'),g4=list.filter(c=>c.tech==='4G');h+=`<div class="op" style="border-color:${opColor(k)}"><b>${esc(opName(k))}</b><span class="tag ${g5.length?'g5':''}">máx ${g5.length?'5G':'4G'}</span>`;if(g5.length)h+=bandTables(g5,'5G');if(g4.length)h+=bandTables(g4,'4G');h+='</div>';}return h+'</div>'}
+const hash=location.hash.match(/map=(\d+)\/([\-\d.]+)\/([\-\d.]+)/);const initial=hash?{center:[Number(hash[2]),Number(hash[3])],zoom:Number(hash[1])}:{center:[39.6,-8],zoom:7};
+const map=L.map('map',{preferCanvas:true,worldCopyJump:true}).setView(initial.center,initial.zoom);
+const baseLayers={osm:L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}),dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}),satellite:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles &copy; Esri'} )};
+let activeBase='osm';baseLayers[activeBase].addTo(map);function setBasemap(name){if(!baseLayers[name])return;map.removeLayer(baseLayers[activeBase]);activeBase=name;baseLayers[name].addTo(map);$('basemap').value=name;savePrefs()}
+let markerLayer=typeof L.markerClusterGroup==='function'?L.markerClusterGroup({showCoverageOnHover:false,spiderfyOnMaxZoom:true,disableClusteringAtZoom:17,maxClusterRadius:48,chunkedLoading:true}):L.layerGroup();map.addLayer(markerLayer);L.control.scale({imperial:false,metric:true}).addTo(map);
+function render(){if(!markerLayer)return;markerLayer.clearLayers();if(!cells.length){$('note').style.display='none';return;}const bounds=map.getBounds().pad(0.08),visible=sites.filter(s=>bounds.contains([s.lat,s.lon])),shown=visible.slice(0,MAXSHOW);for(const s of shown){const mk=L.marker([s.lat,s.lon],{icon:iconFor(s),keyboard:true,title:(s.addr||opName(s.keys[0]||''))+' — '+(s.max5?'5G':'4G')});mk.bindPopup(()=>popup(s),{maxWidth:420,autoPanPadding:[20,40]});mk.on('click',()=>{if($('resultPanel').classList.contains('open'))highlightResult(s)});markerLayer.addLayer(mk);}const note=$('note');note.style.display=visible.length>MAXSHOW?'block':'none';note.textContent=visible.length>MAXSHOW?`A mostrar ${MAXSHOW.toLocaleString('pt-PT')} de ${visible.length.toLocaleString('pt-PT')} locais nesta vista. Aproxime o zoom para mostrar mais.`:'';}
+function updateStats(){const filteredCells=sites.reduce((n,s)=>n+s.cells.length,0);$('statCells').textContent=cells.length.toLocaleString('pt-PT');$('statSites').textContent=sites.length.toLocaleString('pt-PT');$('statShared').textContent=sites.filter(s=>s.shared).length.toLocaleString('pt-PT');$('stat5g').textContent=sites.filter(s=>s.max5).length.toLocaleString('pt-PT');$('statCells').title=`${filteredCells.toLocaleString('pt-PT')} células correspondem aos filtros atuais; ${cells.length.toLocaleString('pt-PT')} no total.`}
+function renderResults(){const panel=$('resultPanel'),list=$('resultList');$('resultTitle').textContent=`Resultados (${sites.length.toLocaleString('pt-PT')})`;if(!panel.classList.contains('open'))return;const sorted=[...sites].sort((a,b)=>a.sortKey.localeCompare(b.sortKey,'pt')||a.lat-b.lat||a.lon-b.lon);if(!sorted.length){list.innerHTML='<p class="muted small" style="padding:10px">Sem resultados para estes filtros.</p>';return;}list.innerHTML=sorted.slice(0,MAX_LIST).map((s,i)=>`<button class="result-item" data-idx="${i}"><span class="result-title">${esc(s.addr||'Local sem nome')} ${s.shared?'· partilhado':''}</span><span class="result-meta"><span class="result-badge">${esc(s.keys.map(opName).join(', '))}</span><span class="result-badge">${s.max5?'5G':'4G'}</span>${s.cells.length} células · ${s.lat.toFixed(5)}, ${s.lon.toFixed(5)}</span></button>`).join('')+(sorted.length>MAX_LIST?`<div class="small muted" style="padding:8px">A mostrar os primeiros ${MAX_LIST} locais. Refina a pesquisa para ver outros.</div>`:'');[...list.querySelectorAll('[data-idx]')].forEach(btn=>btn.addEventListener('click',()=>{const s=sorted[Number(btn.dataset.idx)];focusSite(s)}));}
+function highlightResult(s){/* ponto de extensão visual; a lista continua utilizável sem seleção persistente */}
+function focusSite(s){map.setView([s.lat,s.lon],Math.max(map.getZoom(),16));setTimeout(()=>{let match=null;markerLayer.eachLayer(m=>{const p=m.getLatLng();if(Math.abs(p.lat-s.lat)<1e-7&&Math.abs(p.lng-s.lon)<1e-7)match=m;});if(match)match.openPopup();},250)}
+function fitAllCells(){const list=sites.length?sites:cells.map(c=>({lat:c.lat,lon:c.lon}));if(!list.length)return;try{map.fitBounds(L.latLngBounds(list.map(s=>[s.lat,s.lon])),{maxZoom:15,padding:[30,30]});}catch(e){}}
+function getExportCells(){let result=sites.flatMap(s=>s.cells);if($('exportViewportOnly').checked){const b=map.getBounds();result=result.filter(c=>b.contains([c.lat,c.lon]));}const unique=new Map(result.map(c=>[cellKey(c),c]));return[...unique.values()]}
+function csvEscape(v){const s=String(v??'');return/[;"\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s}
+function downloadFile(name,content,type){const blob=new Blob([content],{type});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function dateStamp(){return new Date().toISOString().slice(0,10)}
+function exportCSV(){const list=getExportCells(),headers=['Tecnologia','MCC','MNC','Operadora','CI/NCI','eNB/gNB','TAC','PCI','Banda','ARFCN','Frequencia_MHz','Latitude','Longitude','Localizacao','Ficheiro'];const rows=list.map(c=>{const[mcc,mnc]=c.op.split('-');return[c.tech,mcc,mnc,opName(c.op),c.id,c.node,c.tac,c.pci,c.band,c.arfcn,c.mhz==null?'':Number(c.mhz).toFixed(4),c.lat,c.lon,c.addr,c.source||'']});downloadFile(`antenas-celulas-${dateStamp()}.csv`,'\uFEFF'+[headers,...rows].map(r=>r.map(csvEscape).join(';')).join('\r\n'),'text/csv;charset=utf-8');setStatus(`Exportadas ${list.length.toLocaleString('pt-PT')} células para CSV.`)}
+function exportJSON(){const list=getExportCells();downloadFile(`antenas-celulas-${dateStamp()}.json`,JSON.stringify(list,null,2),'application/json;charset=utf-8');setStatus(`Exportadas ${list.length.toLocaleString('pt-PT')} células para JSON.`)}
+function exportGeoJSON(){const features=sites.filter(s=>!$('exportViewportOnly').checked||map.getBounds().contains([s.lat,s.lon])).map(s=>({type:'Feature',geometry:{type:'Point',coordinates:[s.lon,s.lat]},properties:{localizacao:s.addr||'',operadoras:s.keys.map(opName),mccMnc:s.keys,tecnologias:[...new Set(s.cells.map(c=>c.tech))],numeroCelulas:s.cells.length,partilhado:s.shared,maxima:s.max5?'5G':'4G',celulas:s.cells.map(c=>({tecnologia:c.tech,operadora:opName(c.op),ci:c.id,node:c.node,tac:c.tac,pci:c.pci,banda:c.band,arfcn:c.arfcn,frequenciaMHz:c.mhz}))}}));downloadFile(`antenas-locais-${dateStamp()}.geojson`,JSON.stringify({type:'FeatureCollection',features},null,2),'application/geo+json;charset=utf-8');setStatus(`Exportados ${features.length.toLocaleString('pt-PT')} locais para GeoJSON.`)}
+async function readFiles(fileList){const files=[...fileList];if(!files.length)return;setStatus('A ler e validar ficheiros…');const results=await Promise.all(files.map(async file=>{try{const parsed=parseFile(await file.text(),file.name);for(const c of parsed.out)c.source=file.name;return{name:file.name,...parsed}}catch(error){return{name:file.name,error}}}));const good=results.filter(r=>!r.error),bad=results.filter(r=>r.error),incoming=good.flatMap(r=>r.out);if(!good.length){setStatus('Não foi possível importar: '+bad.map(r=>`${r.name}: ${r.error.message}`).join(' | '));return;}if(!incoming.length){const skipped=good.reduce((n,r)=>n+r.skipped,0);setStatus('Os ficheiros foram lidos, mas não continham células 4G/5G válidas com coordenadas.'+(skipped?`\n${skipped} registos ignorados por coordenadas/dados inválidos.`:'')+(bad.length?'\nErros: '+bad.map(r=>`${r.name}: ${r.error.message}`).join(' | '):''));return;}const replace=!$('mergeMode').checked;const outcome=updateCells(incoming,{fit:true,replace,sourceNames:good.filter(r=>r.out.length).map(r=>r.name)});const skipped=good.reduce((n,r)=>n+r.skipped,0),messages=[];messages.push(`${incoming.length.toLocaleString('pt-PT')} células válidas lidas; ${outcome.added.toLocaleString('pt-PT')} novas após remover duplicados.`);if(skipped)messages.push(`${skipped} registos ignorados por coordenadas/dados inválidos.`);if(bad.length)messages.push('Erros: '+bad.map(r=>`${r.name}: ${r.error.message}`).join(' | '));if(outcome.saveError)messages.push(outcome.saveError);else messages.push('Dados guardados localmente neste navegador.');setStatus(messages.join('\n'));}
+function renderLoadedFiles(){const box=$('loadedFiles');if(!loadedFiles.length){box.textContent='';return;}box.innerHTML='<strong>Ficheiros importados recentemente</strong>'+loadedFiles.slice(-10).reverse().map(f=>`<div>• ${esc(f)}</div>`).join('')}
+function locateMe(){if(!navigator.geolocation){setStatus('Este navegador não disponibiliza geolocalização.');return;}setStatus('A obter a tua localização…');navigator.geolocation.getCurrentPosition(pos=>{const lat=pos.coords.latitude,lon=pos.coords.longitude;if(locationLayer)map.removeLayer(locationLayer);locationLayer=L.layerGroup([L.circleMarker([lat,lon],{radius:8,color:'#fff',weight:3,fillColor:'#0d8b50',fillOpacity:1}),L.circle([lat,lon],{radius:pos.coords.accuracy||100,color:'#0d8b50',weight:1,fillOpacity:.08})]).addTo(map);map.setView([lat,lon],15);setStatus(`Localização aproximada: ${lat.toFixed(6)}, ${lon.toFixed(6)} (precisão estimada ±${Math.round(pos.coords.accuracy)} m).`);},err=>setStatus('Não foi possível obter a localização: '+({1:'permissão recusada',2:'posição indisponível',3:'tempo esgotado'}[err.code]||err.message)+'. Usa um contexto seguro (HTTPS ou localhost) e permite a localização.'),{enableHighAccuracy:true,timeout:12000,maximumAge:60000})}
+async function copyText(text){try{await navigator.clipboard.writeText(text);setStatus('Copiado para a área de transferência.');}catch(e){const ta=document.createElement('textarea');ta.value=text;document.body.append(ta);ta.select();const ok=document.execCommand('copy');ta.remove();setStatus(ok?'Copiado para a área de transferência.':'Não foi possível copiar automaticamente.');}}
+function copyView(){const c=map.getCenter(),z=map.getZoom(),url=location.href.split('#')[0]+`#map=${z}/${c.lat.toFixed(6)}/${c.lng.toFixed(6)}`;copyText(url)}
+function toggleList(force){const panel=$('resultPanel');panel.classList.toggle('open',force===undefined?!panel.classList.contains('open'):force);if(panel.classList.contains('open'))renderResults()}
+function toggleSidebar(show){$('app').classList.toggle('sidebar-hidden',!show);$('showSidebar').classList.toggle('hidden',show);$('hideSidebar').classList.toggle('hidden',!show);setTimeout(()=>map.invalidateSize(),100)}
+async function toggleFullscreen(){const target=$('mapwrap');try{if(!document.fullscreenElement){const request=target.requestFullscreen||target.webkitRequestFullscreen;if(!request){setStatus('O navegador não suporta ecrã inteiro.');return;}await request.call(target);}else{const leave=document.exitFullscreen||document.webkitExitFullscreen;if(leave)await leave.call(document);}}catch(e){setStatus('Não foi possível ativar o ecrã inteiro: '+e.message)}}
+function resetFilters(){ $('search').value='';$('bandFilter').value='';$('t4').checked=true;$('t5').checked=true;$('onlyShared').checked=false;$('onlyAddress').checked=false;enabledOps=new Set(opsSeen);buildOpFilters();refreshBandFilter();buildSites();savePrefs(); }
+// Importação através do seletor ou arrastar/largar.
+const drop=$('drop'),fileInput=$('file');drop.addEventListener('click',()=>fileInput.click());drop.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fileInput.click()}});fileInput.addEventListener('change',()=>{readFiles(fileInput.files);fileInput.value=''});['dragenter','dragover'].forEach(type=>drop.addEventListener(type,e=>{e.preventDefault();drop.classList.add('over')}));['dragleave','drop'].forEach(type=>drop.addEventListener(type,e=>{e.preventDefault();drop.classList.remove('over')}));drop.addEventListener('drop',e=>readFiles(e.dataTransfer.files));
+$('undoImport').addEventListener('click',undoImport);$('fit').addEventListener('click',fitAllCells);$('mapFit').addEventListener('click',fitAllCells);$('locate').addEventListener('click',locateMe);$('mapLocate').addEventListener('click',locateMe);$('copyView').addEventListener('click',copyView);$('listToggle').addEventListener('click',()=>toggleList());$('mapList').addEventListener('click',()=>toggleList());$('closeList').addEventListener('click',()=>toggleList(false));$('fullScreen').addEventListener('click',toggleFullscreen);$('mapFullscreen').addEventListener('click',toggleFullscreen);$('hideSidebar').addEventListener('click',()=>toggleSidebar(false));$('showSidebar').addEventListener('click',()=>toggleSidebar(true));$('exportCsv').addEventListener('click',exportCSV);$('exportJson').addEventListener('click',exportJSON);$('exportGeo').addEventListener('click',exportGeoJSON);$('basemap').addEventListener('change',e=>setBasemap(e.target.value));$('selectAllOps').addEventListener('click',()=>{enabledOps=new Set(opsSeen);buildOpFilters();buildSites()});$('selectNoOps').addEventListener('click',()=>{enabledOps.clear();buildOpFilters();buildSites()});$('resetFilters').addEventListener('click',resetFilters);['search','bandFilter','t4','t5','onlyShared','onlyAddress','groupSites'].forEach(id=>$(id).addEventListener(id==='search'?'input':'change',()=>{if(id==='t4'||id==='t5')refreshBandFilter();buildSites()}));$('clearData').addEventListener('click',()=>{if(!confirm('Apagar todas as células guardadas neste navegador? Exporta uma cópia antes, se precisares.'))return;try{localStorage.removeItem(STORAGE_KEY);cells=[];sites=[];opsSeen.clear();enabledOps.clear();lastSnapshot=null;loadedFiles=[];$('undoImport').disabled=true;$('fops').innerHTML='<span class="muted small">Importa dados para ver as operadoras.</span>';$('loadedFiles').textContent='';markerLayer.clearLayers();$('note').style.display='none';buildSites();setStatus('Todos os dados locais foram apagados.');}catch(e){setStatus('Não foi possível apagar os dados locais: '+e.message)}});
+map.on('moveend',()=>{clearTimeout(renderTimer);renderTimer=setTimeout(render,60)});map.on('mousemove',e=>{$('mapCoords').textContent=`${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)} · zoom ${map.getZoom()}`});map.on('mouseout',()=>{$('mapCoords').textContent=`Centro: ${map.getCenter().lat.toFixed(5)}, ${map.getCenter().lng.toFixed(5)} · zoom ${map.getZoom()}`});map.on('click',e=>{$('mapCoords').textContent=`${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`});$('mapwrap').addEventListener('click',async e=>{const btn=e.target.closest('.copy-coords');if(btn)await copyText(btn.dataset.coords)});document.addEventListener('keydown',e=>{if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){e.preventDefault();toggleSidebar(true);$('search').focus()}if(e.key==='Escape'){const hadSearch=!!$('search').value;$('search').value='';toggleList(false);if(hadSearch)buildSites()}});document.addEventListener('fullscreenchange',()=>setTimeout(()=>map.invalidateSize(),100));
+// Restaurar preferências e dados guardados nesta instalação do navegador.
+const savedPrefs=loadPrefs();if(savedPrefs.enabledOps)enabledOps=new Set(savedPrefs.enabledOps);setBasemap($('basemap').value);
+try{const currentSaved=localStorage.getItem(STORAGE_KEY),legacySaved=currentSaved?null:localStorage.getItem('mapa-antenas-cells-v1'),saved=currentSaved||legacySaved;if(saved){const restored=JSON.parse(saved);if(!Array.isArray(restored))throw new Error('Formato local inválido.');cells=restored;opsSeen=new Set(cells.map(c=>c.op));enabledOps=Array.isArray(savedPrefs.enabledOps)?new Set(savedPrefs.enabledOps.filter(k=>opsSeen.has(k))):new Set(opsSeen);buildOpFilters();refreshBandFilter();if(savedPrefs.band&&[...$('bandFilter').options].some(o=>o.value===savedPrefs.band))$('bandFilter').value=savedPrefs.band;buildSites();setStatus(`${legacySaved?'Migradas e restauradas':'Restauradas'} ${cells.length.toLocaleString('pt-PT')} células guardadas localmente.`);if(legacySaved)saveCells();$('undoImport').disabled=true;}}catch(e){setStatus('Não foi possível restaurar os dados locais: '+e.message)}
+render();
 </script>
 </body>
 </html>
